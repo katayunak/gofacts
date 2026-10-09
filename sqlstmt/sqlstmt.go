@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/katayunak/1819/gofacts/internal/sqltext"
+	"github.com/katayunak/gofacts/internal/sqltext"
 )
 
 type Kind string

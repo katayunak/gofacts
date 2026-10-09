@@ -8,8 +8,8 @@ import (
 
 	"golang.org/x/tools/go/packages"
 
-	"github.com/katayunak/1819/gofacts/fact"
-	"github.com/katayunak/1819/gofacts/sqlstmt"
+	"github.com/katayunak/gofacts/fact"
+	"github.com/katayunak/gofacts/sqlstmt"
 )
 
 var ormWriteVerb = map[string]string{

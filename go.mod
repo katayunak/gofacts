@@ -1,4 +1,4 @@
-module github.com/katayunak/1819/gofacts
+module github.com/katayunak/gofacts
 
 go 1.25.0
 

@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/tools/go/packages"
 
-	"github.com/katayunak/1819/gofacts/fact"
+	"github.com/katayunak/gofacts/fact"
 )
 
 type funcSpan struct {

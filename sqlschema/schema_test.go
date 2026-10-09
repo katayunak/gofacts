@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/katayunak/1819/gofacts/fact"
+	"github.com/katayunak/gofacts/fact"
 )
 
 func schemaOf(t *testing.T, sql string) fact.Infra {

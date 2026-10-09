@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/katayunak/1819/gofacts/internal/gomodtest"
+	"github.com/katayunak/gofacts/internal/gomodtest"
 )
 
 func TestAFailingTestIsAResultNotAnError(t *testing.T) {

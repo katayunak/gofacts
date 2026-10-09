@@ -3,7 +3,7 @@ package sqlschema
 import (
 	"strings"
 
-	"github.com/katayunak/1819/gofacts/fact"
+	"github.com/katayunak/gofacts/fact"
 )
 
 // Schema is the state DDL leaves behind. Apply statements in the order the

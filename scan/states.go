@@ -10,8 +10,8 @@ import (
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/packages"
 
-	"github.com/katayunak/1819/gofacts/fact"
-	"github.com/katayunak/1819/gofacts/naming"
+	"github.com/katayunak/gofacts/fact"
+	"github.com/katayunak/gofacts/naming"
 )
 
 type lifecycle struct {

@@ -14,8 +14,8 @@ import (
 
 	"golang.org/x/tools/go/packages"
 
-	"github.com/katayunak/1819/gofacts/fact"
-	"github.com/katayunak/1819/gofacts/goenv"
+	"github.com/katayunak/gofacts/fact"
+	"github.com/katayunak/gofacts/goenv"
 )
 
 type Config struct {

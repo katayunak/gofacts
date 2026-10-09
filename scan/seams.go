@@ -11,8 +11,8 @@ import (
 	"golang.org/x/tools/go/packages"
 	"golang.org/x/tools/go/ssa"
 
-	"github.com/katayunak/1819/gofacts/fact"
-	"github.com/katayunak/1819/gofacts/naming"
+	"github.com/katayunak/gofacts/fact"
+	"github.com/katayunak/gofacts/naming"
 )
 
 type kindSet uint8

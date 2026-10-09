@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/katayunak/1819/gofacts/fact"
+	"github.com/katayunak/gofacts/fact"
 )
 
 const diService = `package service

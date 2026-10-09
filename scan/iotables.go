@@ -3,7 +3,7 @@ package scan
 import (
 	"strings"
 
-	"github.com/katayunak/1819/gofacts/fact"
+	"github.com/katayunak/gofacts/fact"
 )
 
 // ioPrefix nominates a package as a boundary of some kind. These rows are the

@@ -7,8 +7,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/katayunak/1819/gofacts/fact"
-	"github.com/katayunak/1819/gofacts/internal/gomodtest"
+	"github.com/katayunak/gofacts/fact"
+	"github.com/katayunak/gofacts/internal/gomodtest"
 )
 
 var (

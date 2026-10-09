@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/katayunak/1819/gofacts/fact"
+	"github.com/katayunak/gofacts/fact"
 )
 
 var ErrNoEntries = errors.New("no entry points: a payment flow has several (API handler, provider webhook, " +

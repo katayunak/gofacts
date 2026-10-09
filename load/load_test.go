@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/katayunak/1819/gofacts/internal/gomodtest"
+	"github.com/katayunak/gofacts/internal/gomodtest"
 )
 
 func TestLoadsDespiteAHostileGlobalGOFLAGS(t *testing.T) {

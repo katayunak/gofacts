@@ -55,8 +55,7 @@ the mermaid flow renderer (`report/mermaid.go`) and the MCP server scaffolding.
 
 ## Switching testigo over
 
-1. `require github.com/katayunak/1819/gofacts` (with
-   `replace => ../1819/gofacts` until it is tagged), then `go mod vendor`.
+1. `go get github.com/katayunak/gofacts@latest`, then `go mod vendor`.
 2. `flowEntity.X` → `fact.X`. Every identifier testigo uses exists, `StateRole`
    and `StateRoles` included. `fact.SchemaVersion` is 5; version 4 keys keep
    their names.

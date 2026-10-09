@@ -1,5 +1,7 @@
 # gofacts
 
+[![CI](https://github.com/katayunak/gofacts/actions/workflows/ci.yml/badge.svg)](https://github.com/katayunak/gofacts/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Go 1.25+](https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white)](go.mod)
 
 Facts a Go payment service's code can prove about itself — as a library.
@@ -20,13 +22,13 @@ Every answer carries a file and line, and says whether it was **proved** by the
 compiler or **guessed** from names. It never runs the code it reads.
 
 It is the shared core of two tools: [testigo](https://github.com/katayunak/testigo)
-plans payment-flow tests from these facts, and the [1819](../README.md) reviewer
+plans payment-flow tests from these facts, and the [1819](https://github.com/katayunak/1819) reviewer
 judges diffs against them.
 
 ## Install
 
 ```bash
-go get github.com/katayunak/1819/gofacts
+go get github.com/katayunak/gofacts
 ```
 
 Go 1.25 or newer. The only dependency is `golang.org/x/tools`.

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/katayunak/1819/gofacts/fact"
-	"github.com/katayunak/1819/gofacts/scan"
+	"github.com/katayunak/gofacts/fact"
+	"github.com/katayunak/gofacts/scan"
 )
 
 func Example() {

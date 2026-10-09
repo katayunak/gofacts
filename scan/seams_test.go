@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/katayunak/1819/gofacts/fact"
+	"github.com/katayunak/gofacts/fact"
 )
 
 func namedType(pkgPath, name string, under types.Type) *types.Named {

@@ -26,9 +26,9 @@ import (
 	"golang.org/x/tools/go/packages"
 	"golang.org/x/tools/go/ssa"
 
-	"github.com/katayunak/1819/gofacts/fact"
-	"github.com/katayunak/1819/gofacts/goenv"
-	"github.com/katayunak/1819/gofacts/load"
+	"github.com/katayunak/gofacts/fact"
+	"github.com/katayunak/gofacts/goenv"
+	"github.com/katayunak/gofacts/load"
 )
 
 type Options struct {

@@ -14,7 +14,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/katayunak/1819/gofacts/goenv"
+	"github.com/katayunak/gofacts/goenv"
 )
 
 type Options struct {

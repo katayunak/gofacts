@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/katayunak/1819/gofacts/fact"
+	"github.com/katayunak/gofacts/fact"
 )
 
 // structural rule IDs apply to a function's own code. A Flow keeps them only

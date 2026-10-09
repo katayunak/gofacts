@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/tools/go/ssa"
 
-	"github.com/katayunak/1819/gofacts/fact"
+	"github.com/katayunak/gofacts/fact"
 )
 
 // transactions finds every transaction the module opens and computes, on the
