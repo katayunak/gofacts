@@ -125,6 +125,11 @@ is wrong only if gofacts has a bug.
 | `likely` | a dynamic call narrowed (VTA) to the implementations the module is seen to store there |
 | `possible` | a dynamic call nothing in the module feeds, so every implementation (CHA) |
 
+A call nothing in the module feeds through a function value of a generic shape
+(`func()`, `func(context.Context) error`) or a plumbing interface (`error`,
+`io.Writer`) gets no edge at all: CHA would link a `defer cancel()` to every
+`func()` in the module, `main` included.
+
 A call chain is as certain as its weakest edge. None of it is a runtime trace.
 
 ## Packages
@@ -177,7 +182,12 @@ Paths in model output are treated as input: `cite` refuses absolute paths,
   module only through library code is not seen, so such a call site can come
   back narrower than it really is.
 - SQL is read by pattern. Statements assembled at run time, or written in an
-  ORM DSL beyond `Model`/`Table`/`Set`/`OnConflict`, are not seen.
+  ORM DSL beyond `Model`/`Table`/`Set`/`OnConflict`, are not seen. The one
+  exception is DDL in Go migrations built from constants: concatenation,
+  `fmt.Sprintf`, or a one-line helper such as `addColumn("payments", "rrn", "text")`.
+- Go migrations run in the order of the number their file names start with.
+  DDL in Go outside a migration package (a test reset, a teardown) is ignored
+  when the module has migrations, and only adds when it has none.
 - cgo files are not analysed.
 - A transaction is followed within one function. One begun in a function and
   committed in another is reported as escaping, and its leaks are not judged.
