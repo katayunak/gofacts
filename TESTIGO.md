@@ -13,6 +13,7 @@ or in the package's own tests.
 |---|---|---|
 | inherited the caller's env: a global `GOFLAGS=-mod=vendor` broke every non-vendored repo; `-toolexec`, `GOTOOLCHAIN=auto` and cgo were live | env decided by `goenv` | `TestInheritedFlagsCannotReachTheGoCommand`, `TestLoadsDespiteAHostileGlobalGOFLAGS` |
 | pruned CHA edges by import closure, dropping implementations behind an interface declared where it is consumed (the usual layout) | VTA narrows sites the module wires; CHA is the labelled fallback | `TestImplementationBehindAConsumerInterfaceIsReached`, `TestWithoutWiringEveryImplementationIsAPossibleCallee` |
+| the import-closure filter still let a `defer cancel()` reach every `func()` in the caller's import closure under CHA: a wallet's payment flow reached its job scheduler, gateway registration and gRPC dials | an unresolved call through a generic `func` shape or a plumbing interface gets no edge | `TestADeferredCancelIsNotACallToEveryFuncInTheModule` |
 | transactions were three booleans per function | SSA control-flow window from begin to commit/rollback, error branch of the begin excluded | `TestNetworkCallAfterCommitIsNotInsideTheTransaction`, `TestAReturnBetweenBeginAndCommitIsALeak` |
 | a network call one helper away was invisible to `TX-NET-CALL` | module callees judged by what they reach | `TestNetworkCallThroughAHelperIsInsideTheTransaction` |
 | — | `TX-UNUSED`: a transaction nothing runs on (walletsvc's `Atomic`) | `TestATransactionNobodyUsesProtectsNothing` |
@@ -21,6 +22,8 @@ or in the package's own tests.
 | ORM write verbs matched by name on any receiver | only on database-library methods | — |
 | column-level `UNIQUE`/`PRIMARY KEY`, `USING btree`, single-line `CREATE TABLE`, `ALTER TABLE ONLY ... ADD UNIQUE` unseen; comments counted | statement-scoped DDL reader | `sqlschema/schema_test.go` |
 | every `.sql` read flat: down files were schema, `DROP INDEX` ignored | migrations applied in version order, down sections skipped | `TestADroppedIndexNoLongerProtectsTheKey`, `sqlschema/migration_test.go` |
+| any call named `Register` or `MustRegister` was a migration: a wallet's four `prometheus.Register`, two `reflection.Register` and a gRPC method called `Register` became "10 of 50 migrations cannot be rolled back" | only calls that resolve into go-pg/migrations or goose | `TestGoMigrationsLeaveTheSchemaTheyBuild` |
+| Go migration DDL read from string literals only, so statements built by helpers (`addColumn("transactions", "rrn", "text")`) were invisible | constants, `+`, `fmt.Sprintf` and one-line helpers evaluated; Go migrations applied in version order; a test reset in Go does not drop the schema | `TestGoMigrationsLeaveTheSchemaTheyBuild`, `TestGoDDLOutsideMigrationsOnlyAdds` |
 | composite unique `(tenant, key)` did not protect the key (formance ledger's shape) | `Infra.UniqueOn` reports scope and partial predicates | `TestACompositeUniqueScopedByTenantSatisfiesTheKey` |
 | idempotency key checked against `snake_case(field)` on any table | against the column the INSERT binds it to, on that table | `TestIdempotencyKeyIsCheckedAgainstTheColumnItIsStoredIn` |
 | key evidence pooled by field name across structs | keyed by the field's `types.Var` | `TestOriginEvidenceBelongsToTheFieldNotTheName` |
@@ -68,6 +71,8 @@ the mermaid flow renderer (`report/mermaid.go`) and the MCP server scaffolding.
 5. `agent.run` → `gocmd.Run`.
 
 Expect different output, deliberately: more nodes behind consumer-defined
-interfaces, fewer `TX-NET-CALL` false positives, new `TX-UNUSED` and
-`TX-BYPASS` findings, table writes that used to be missing, and no
-`IDEM-KEY-NOT-UNIQUE` for fields the table does not store (paysvc's `OrderID`).
+interfaces but fewer overall (no `func()` fan-out), fewer `TX-NET-CALL` false
+positives, new `TX-UNUSED` and `TX-BYPASS` findings, table writes that used to
+be missing, no `MIGRATION-NO-DOWN` for `Register` calls that are not
+migrations, and no `IDEM-KEY-NOT-UNIQUE` for fields the table does not store
+(paysvc's `OrderID`).

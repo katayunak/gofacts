@@ -402,3 +402,75 @@ func ids(fs []fact.Function) []string {
 	}
 	return out
 }
+
+const hashChainSrc = `package chain
+
+import "crypto/sha256"
+
+type Log struct {
+	Hash []byte
+	Data string
+}
+
+func (l Log) ChainLog(previous *Log) Log {
+	h := sha256.New()
+	if previous != nil {
+		h.Write(previous.Hash)
+	}
+	h.Write([]byte(l.Data))
+	l.Hash = h.Sum(nil)
+	return l
+}
+
+type Order struct {
+	Total int
+}
+
+func (o Order) Merge(other *Order) Order {
+	return Order{Total: o.Total + other.Total}
+}
+
+type Password struct {
+	Digest []byte
+}
+
+func (p *Password) SetFrom(plain string) {
+	sum := sha256.Sum256([]byte(plain))
+	p.Digest = sum[:]
+}
+`
+
+func hashChains(t *testing.T) []fact.HashChain {
+	return lab(t, "hashchain", func() map[string]string {
+		return map[string]string{"chain/chain.go": hashChainSrc}
+	}).HashChains()
+}
+
+func TestExtractHashChainsFindsASelfTypedHashingMethod(t *testing.T) {
+	chains := hashChains(t)
+	if len(chains) != 1 {
+		t.Fatalf("got %d chains, want 1: %+v", len(chains), chains)
+	}
+	if chains[0].Type != "example.com/m/chain.Log" {
+		t.Fatalf("got type %q, want %q", chains[0].Type, "example.com/m/chain.Log")
+	}
+	if m := chains[0].Method; m.Symbol != "Log.ChainLog" || m.File != "chain/chain.go" || m.Line != 10 {
+		t.Fatalf("got method %+v, want Log.ChainLog at chain/chain.go:10", m)
+	}
+}
+
+func TestExtractHashChainsIgnoresASelfTypedMethodThatDoesNotHash(t *testing.T) {
+	for _, c := range hashChains(t) {
+		if c.Type == "example.com/m/chain.Order" {
+			t.Fatalf("Order.Merge takes another Order but never hashes anything, and should not be reported as a hash chain")
+		}
+	}
+}
+
+func TestExtractHashChainsIgnoresHashingThatIsNotSelfTyped(t *testing.T) {
+	for _, c := range hashChains(t) {
+		if c.Type == "example.com/m/chain.Password" {
+			t.Fatalf("Password.SetFrom hashes a plain string, not a previous Password, and should not be reported as a hash chain")
+		}
+	}
+}

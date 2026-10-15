@@ -155,6 +155,16 @@ ALTER TABLE payments RENAME TO charges;
 	}
 }
 
+func TestARenamedIndexIsDroppedByItsNewName(t *testing.T) {
+	infra := schemaOf(t, `
+CREATE TABLE wallets (id uuid PRIMARY KEY, number text UNIQUE);
+ALTER TABLE wallets RENAME COLUMN number TO account;
+ALTER INDEX wallets_number_key RENAME TO wallets_account_key;
+ALTER TABLE wallets DROP CONSTRAINT wallets_account_key;
+`)
+	mustNotUnique(t, infra, "wallets", "account")
+}
+
 func TestAddColumnWithInlineUnique(t *testing.T) {
 	infra := schemaOf(t, `
 CREATE TABLE payments (id text);
