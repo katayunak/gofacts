@@ -263,8 +263,11 @@ func (p *Program) moneyCandidates() fact.Candidates {
 }
 
 func (p *Program) moneyFieldCandidates(pkg *packages.Package, owner string, st *ast.StructType) []fact.Candidate {
-	hasCurrency := false
+	hasCurrency, embeds := false, false
 	for _, fld := range st.Fields.List {
+		if len(fld.Names) == 0 {
+			embeds = true
+		}
 		for _, nm := range fld.Names {
 			if naming.IsCurrencyName(nm.Name) {
 				hasCurrency = true
@@ -297,16 +300,63 @@ func (p *Program) moneyFieldCandidates(pkg *packages.Package, owner string, st *
 				c.Score += 2
 				c.Proof = append(c.Proof, "a plain integer, so minor units")
 			}
-			if hasCurrency {
+			place, where := currencyIn(tv.Type)
+			switch {
+			case hasCurrency:
+				c.Currency = fact.CurrencyBeside
 				c.Score += 2
 				c.Proof = append(c.Proof, "a currency field sits beside it in the same struct")
-			} else {
+			case place == fact.CurrencyInType:
+				c.Currency = fact.CurrencyInType
+				c.Score += 2
+				c.Proof = append(c.Proof, "its type carries a currency in "+where)
+			default:
 				c.Against = append(c.Against, "no currency field in the same struct — an amount alone is a number, not money")
+				// A field promoted from an embedded struct could still hold one.
+				if !embeds && place == fact.CurrencyMissing {
+					c.Currency = fact.CurrencyMissing
+				}
 			}
 			out = append(out, c)
 		}
 	}
 	return out
+}
+
+// currencyIn says whether a value of type t carries its own currency, and in
+// which field or method. Empty means t could hold one out of sight: an
+// interface, a container, or a struct with an embedded field.
+func currencyIn(t types.Type) (fact.CurrencyPlace, string) {
+	if ptr, ok := types.Unalias(t).(*types.Pointer); ok {
+		t = ptr.Elem()
+	}
+	name := "its struct type"
+	if n, ok := types.Unalias(t).(*types.Named); ok {
+		name = n.Obj().Name()
+		ms := types.NewMethodSet(types.NewPointer(n))
+		for i := 0; i < ms.Len(); i++ {
+			if m := ms.At(i).Obj(); naming.IsCurrencyName(m.Name()) {
+				return fact.CurrencyInType, name + "." + m.Name() + "()"
+			}
+		}
+	}
+	switch u := t.Underlying().(type) {
+	case *types.Basic:
+		return fact.CurrencyMissing, ""
+	case *types.Struct:
+		embeds := false
+		for i := 0; i < u.NumFields(); i++ {
+			fld := u.Field(i)
+			if naming.IsCurrencyName(fld.Name()) {
+				return fact.CurrencyInType, name + "." + fld.Name()
+			}
+			embeds = embeds || fld.Embedded()
+		}
+		if !embeds {
+			return fact.CurrencyMissing, ""
+		}
+	}
+	return "", ""
 }
 
 func withoutGenerated[T any](items []T, gen map[string]bool, fileOf func(T) string) []T {

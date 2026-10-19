@@ -24,7 +24,25 @@ type Candidate struct {
 	// how a uniqueness claim is checked against the schema.
 	Table  string `json:"table,omitempty"`
 	Column string `json:"column,omitempty"`
+
+	// Currency is where a money field's currency lives. Empty means not known,
+	// which is not the same as CurrencyMissing.
+	Currency CurrencyPlace `json:"currency,omitempty"`
 }
+
+// CurrencyPlace is decided from field names, so it is heuristic: a currency
+// held under an unusual name is missed.
+type CurrencyPlace string
+
+const (
+	// CurrencyBeside: a currency field sits in the same struct as the amount.
+	CurrencyBeside CurrencyPlace = "beside"
+	// CurrencyInType: the amount's own struct type has a currency field.
+	CurrencyInType CurrencyPlace = "in_type"
+	// CurrencyMissing: the struct and the amount's type were both read, and
+	// neither has a currency field.
+	CurrencyMissing CurrencyPlace = "missing"
+)
 
 func (c Candidate) String() string {
 	return fmt.Sprintf("%s.%s (%s:%d) score=%d", c.Owner, c.Name, c.File, c.Line, c.Score)
