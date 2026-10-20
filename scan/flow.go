@@ -89,6 +89,7 @@ func (p *Program) Flow(entries []fact.EntryPoint) (*fact.Flow, error) {
 	flow.Infra = p.infra
 	flow.TableWrites = p.TableWrites()
 	flow.HashChains = p.HashChains()
+	flow.Reconcilers = p.Reconcilers()
 	flow.IdempotencyKeys = p.IdempotencyKeys()
 	flow.MoneyTypes = p.MoneyTypes()
 	flow.Entities = map[string]string{}

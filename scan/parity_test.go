@@ -474,3 +474,52 @@ func TestExtractHashChainsIgnoresHashingThatIsNotSelfTyped(t *testing.T) {
 		}
 	}
 }
+
+const reconcilerSrc = `package jobs
+
+type Settlement struct{}
+
+func NewReconciler() *Settlement { return &Settlement{} }
+
+func (s *Settlement) Reconcile() error { return nil }
+
+func RunDailyRecon() {}
+
+func Record() {}
+`
+
+func reconcilers(t *testing.T) []fact.Reconciler {
+	return lab(t, "reconciler", func() map[string]string {
+		return map[string]string{"jobs/jobs.go": reconcilerSrc}
+	}).Reconcilers()
+}
+
+func TestReconcilersAreFoundByNameAndMarkedHeuristic(t *testing.T) {
+	got := reconcilers(t)
+	want := []struct {
+		symbol string
+		line   int
+	}{{"(*Settlement).Reconcile", 7}, {"RunDailyRecon", 9}}
+	if len(got) != len(want) {
+		t.Fatalf("got %d reconcilers, want %d: %+v", len(got), len(want), got)
+	}
+	for i, w := range want {
+		r := got[i]
+		if r.Func.Symbol != w.symbol || r.Func.File != "jobs/jobs.go" || r.Func.Line != w.line {
+			t.Errorf("reconciler %d: got %+v, want %s at jobs/jobs.go:%d", i, r.Func, w.symbol, w.line)
+		}
+		if r.Basis != fact.Heuristic || r.Proof == "" {
+			t.Errorf("%s was found by its name, so it must be heuristic and say why: %+v", w.symbol, r)
+		}
+	}
+}
+
+func TestPaysvcReconcilerIsInTheFlow(t *testing.T) {
+	f := paysvcFlow(t)
+	if len(f.Reconcilers) != 1 {
+		t.Fatalf("got %d reconcilers, want 1: %+v", len(f.Reconcilers), f.Reconcilers)
+	}
+	if r := f.Reconcilers[0].Func; r.ID() != "example.com/paysvc/recon#(*Job).Reconcile" || r.File != "recon/recon.go" || r.Line != 17 {
+		t.Fatalf("got %+v, want (*Job).Reconcile at recon/recon.go:17", r)
+	}
+}

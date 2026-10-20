@@ -55,6 +55,8 @@ var idempotencyField = NewVocab(
 	"transfer id", "payment id",
 )
 
+var reconcile = NewVocab("reconcile", "reconciler", "reconciliation", "recon")
+
 var stateStrong = NewVocab(
 	"status", "state", "phase", "stage", "step", "lifecycle", "disposition",
 	"transition", "progress", "stat", "sts", "situation", "position",
@@ -96,6 +98,12 @@ func IsCounterName(name string) bool     { return counter.Matches(name) }
 func IsRateName(name string) bool        { return rate.Matches(name) }
 func IsContainerName(name string) bool   { return container.Matches(name) }
 func IsIdempotencyName(name string) bool { return idempotencyField.Matches(name) }
+
+// IsReconcilerName: a function named as a repair job (Reconcile,
+// RunSettlementRecon), not its constructor (NewReconciler).
+func IsReconcilerName(name string) bool {
+	return reconcile.Matches(name) && Words(name)[0] != "new"
+}
 
 // IsStateType: named like a lifecycle (PaymentStatus).
 func IsStateType(name string) bool { return stateStrong.MatchesLast(name) }

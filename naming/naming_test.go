@@ -124,3 +124,16 @@ func TestMoneyTypesAreReadFromTheLastWords(t *testing.T) {
 		}
 	}
 }
+
+func TestReconcilersAreNamedAsARepairJob(t *testing.T) {
+	for _, n := range []string{"Reconcile", "ReconcilePayments", "RunSettlementRecon", "reconciliation_job"} {
+		if !IsReconcilerName(n) {
+			t.Errorf("%s should be a reconciler name", n)
+		}
+	}
+	for _, n := range []string{"NewReconciler", "Record", "Reconnect", "Settle"} {
+		if IsReconcilerName(n) {
+			t.Errorf("%s is not a reconciler", n)
+		}
+	}
+}

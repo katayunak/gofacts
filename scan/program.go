@@ -88,6 +88,7 @@ type Program struct {
 	entities    map[string]string
 	tableNames  map[*types.Func]string
 	hashChains  []fact.HashChain
+	reconcilers []fact.Reconciler
 	findings    []fact.Finding
 	genFindings int
 }
@@ -121,6 +122,7 @@ func Load(ctx context.Context, opts Options) (*Program, error) {
 		func() error { p.txs = p.transactions(); return nil },
 		func() error { p.states = p.stateMachines(); return nil },
 		func() error { p.hashChains = p.extractHashChains(); return nil },
+		func() error { p.reconcilers = p.extractReconcilers(); return nil },
 		func() error { p.idem, p.entities = p.idempotencyCandidates(); return nil },
 		func() error { p.money = p.moneyCandidates(); return nil },
 		func() error { p.findings, p.genFindings = p.allFindings(); return nil },
@@ -171,6 +173,9 @@ func (p *Program) IdempotencyKeys() fact.Candidates { return append(fact.Candida
 func (p *Program) MoneyTypes() fact.Candidates      { return append(fact.Candidates(nil), p.money...) }
 func (p *Program) HashChains() []fact.HashChain {
 	return append([]fact.HashChain(nil), p.hashChains...)
+}
+func (p *Program) Reconcilers() []fact.Reconciler {
+	return append([]fact.Reconciler(nil), p.reconcilers...)
 }
 
 // Findings are program-wide: every rule applied to every function of the
