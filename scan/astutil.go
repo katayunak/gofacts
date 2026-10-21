@@ -97,21 +97,23 @@ func namedOf(t types.Type) *types.Named {
 }
 
 func elemNamed(t types.Type) *types.Named {
+	n, _ := elemOf(t).(*types.Named)
+	return n
+}
+
+// elemOf strips pointers, slices and arrays down to the element type.
+func elemOf(t types.Type) types.Type {
 	for {
 		switch x := types.Unalias(t).(type) {
 		case *types.Pointer:
 			t = x.Elem()
-			continue
 		case *types.Slice:
 			t = x.Elem()
-			continue
 		case *types.Array:
 			t = x.Elem()
-			continue
-		case *types.Named:
+		default:
 			return x
 		}
-		return nil
 	}
 }
 

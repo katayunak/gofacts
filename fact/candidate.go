@@ -35,12 +35,13 @@ type Candidate struct {
 type CurrencyPlace string
 
 const (
-	// CurrencyBeside: a currency field sits in the same struct as the amount.
+	// CurrencyBeside: the struct holding the amount has a currency field or
+	// getter, its own or promoted from an embedded struct.
 	CurrencyBeside CurrencyPlace = "beside"
-	// CurrencyInType: the amount's own struct type has a currency field.
+	// CurrencyInType: the amount's own type has a currency field or getter.
 	CurrencyInType CurrencyPlace = "in_type"
 	// CurrencyMissing: the struct and the amount's type were both read, and
-	// neither has a currency field.
+	// neither has a currency field or getter.
 	CurrencyMissing CurrencyPlace = "missing"
 )
 

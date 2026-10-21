@@ -22,7 +22,7 @@ func (p *Program) moneyFindings() []fact.Finding {
 				switch t := n.(type) {
 				case *ast.TypeSpec:
 					if st, ok := t.Type.(*ast.StructType); ok {
-						out = append(out, p.checkStruct(pkg, t.Name.Name, st)...)
+						out = append(out, p.checkStruct(pkg, t.Name.Name, declType(pkg, t), st)...)
 					}
 				case *ast.FuncDecl:
 					out = append(out, p.checkSignature(pkg, t)...)
@@ -103,18 +103,13 @@ func isMoneyExpr(pkg *packages.Package, e ast.Expr) bool {
 	return false
 }
 
-func (p *Program) checkStruct(pkg *packages.Package, typeName string, st *ast.StructType) []fact.Finding {
+func (p *Program) checkStruct(pkg *packages.Package, typeName string, typ types.Type, st *ast.StructType) []fact.Finding {
 	if naming.IsContainerName(typeName) {
 		return nil
 	}
-	hasCurrency := false
-	for _, fld := range st.Fields.List {
-		for _, nm := range fld.Names {
-			if naming.IsCurrencyName(nm.Name) {
-				hasCurrency = true
-			}
-		}
-	}
+	// The same reading as Candidate.Currency: a bare integer carries no
+	// currency of its own, so only the struct's counts.
+	owner, _ := currencyIn(typ)
 	var out []fact.Finding
 	for _, fld := range st.Fields.List {
 		tv, ok := pkg.TypesInfo.Types[fld.Type]
@@ -134,7 +129,7 @@ func (p *Program) checkStruct(pkg *packages.Package, typeName string, st *ast.St
 					Detail: "Binary floating point cannot represent 0.10 exactly. Summing many line items drifts, comparisons that should be equal are not, and the error is invisible in any test that checks a single transaction. Store minor units in an integer or use a fixed-point decimal type.",
 					Ref:    ref, Line: ref.Line,
 				})
-			case isInteger(tv.Type) && !hasCurrency && isBasic(tv.Type):
+			case isInteger(tv.Type) && isBasic(tv.Type) && owner == fact.CurrencyMissing:
 				out = append(out, fact.Finding{
 					ID: "MONEY-NO-CURRENCY", Severity: fact.SevMedium, Basis: fact.Heuristic,
 					Title:  typeName + "." + nm.Name + " is a bare integer with no currency alongside it",
@@ -239,20 +234,27 @@ func (p *Program) moneyCandidates() fact.Candidates {
 				}
 				st, ok := spec.Type.(*ast.StructType)
 				if !ok {
-					if naming.IsMoneyType(spec.Name.Name) {
-						out = append(out, fact.Candidate{
+					// A type named like a currency is the currency, not an amount.
+					if naming.IsMoneyType(spec.Name.Name) && !naming.IsCurrencyName(spec.Name.Name) {
+						c := fact.Candidate{
 							Name: spec.Name.Name, Owner: pkg.PkgPath,
 							Type: types.ExprString(spec.Type), File: p.rel(spec.Pos()), Line: p.line(spec.Pos()),
 							Score: 5,
 							Proof: []string{"a named type whose name means money", "declared as " + types.ExprString(spec.Type)},
-						})
+						}
+						place, where := currencyIn(declType(pkg, spec))
+						c.Currency = place
+						if place == fact.CurrencyInType {
+							c.Proof = append(c.Proof, "it carries a currency in "+where)
+						}
+						out = append(out, c)
 					}
 					return true
 				}
 				if naming.IsContainerName(spec.Name.Name) {
 					return true
 				}
-				out = append(out, p.moneyFieldCandidates(pkg, spec.Name.Name, st)...)
+				out = append(out, p.moneyFieldCandidates(pkg, spec.Name.Name, declType(pkg, spec), st)...)
 				return true
 			})
 		}
@@ -262,18 +264,8 @@ func (p *Program) moneyCandidates() fact.Candidates {
 	return out
 }
 
-func (p *Program) moneyFieldCandidates(pkg *packages.Package, owner string, st *ast.StructType) []fact.Candidate {
-	hasCurrency, embeds := false, false
-	for _, fld := range st.Fields.List {
-		if len(fld.Names) == 0 {
-			embeds = true
-		}
-		for _, nm := range fld.Names {
-			if naming.IsCurrencyName(nm.Name) {
-				hasCurrency = true
-			}
-		}
-	}
+func (p *Program) moneyFieldCandidates(pkg *packages.Package, owner string, typ types.Type, st *ast.StructType) []fact.Candidate {
+	beside, besideAt := currencyIn(typ)
 	var out []fact.Candidate
 	for _, fld := range st.Fields.List {
 		tv, ok := pkg.TypesInfo.Types[fld.Type]
@@ -281,7 +273,8 @@ func (p *Program) moneyFieldCandidates(pkg *packages.Package, owner string, st *
 			continue
 		}
 		for _, nm := range fld.Names {
-			if !naming.IsMoneyName(nm.Name) {
+			// SettlementCurrency names a currency, not an amount.
+			if !naming.IsMoneyName(nm.Name) || naming.IsCurrencyName(nm.Name) {
 				continue
 			}
 			c := fact.Candidate{
@@ -300,20 +293,21 @@ func (p *Program) moneyFieldCandidates(pkg *packages.Package, owner string, st *
 				c.Score += 2
 				c.Proof = append(c.Proof, "a plain integer, so minor units")
 			}
-			place, where := currencyIn(tv.Type)
-			switch {
-			case hasCurrency:
+			if beside == fact.CurrencyInType {
 				c.Currency = fact.CurrencyBeside
 				c.Score += 2
-				c.Proof = append(c.Proof, "a currency field sits beside it in the same struct")
-			case place == fact.CurrencyInType:
+				c.Proof = append(c.Proof, "a currency sits beside it in "+besideAt)
+				out = append(out, c)
+				continue
+			}
+			if place, where := currencyIn(tv.Type); place == fact.CurrencyInType {
 				c.Currency = fact.CurrencyInType
 				c.Score += 2
 				c.Proof = append(c.Proof, "its type carries a currency in "+where)
-			default:
+			} else {
 				c.Against = append(c.Against, "no currency field in the same struct — an amount alone is a number, not money")
-				// A field promoted from an embedded struct could still hold one.
-				if !embeds && place == fact.CurrencyMissing {
+				// Missing only when both sides were read; otherwise not known.
+				if place == fact.CurrencyMissing && beside == fact.CurrencyMissing {
 					c.Currency = fact.CurrencyMissing
 				}
 			}
@@ -324,39 +318,82 @@ func (p *Program) moneyFieldCandidates(pkg *packages.Package, owner string, st *
 }
 
 // currencyIn says whether a value of type t carries its own currency, and in
-// which field or method. Empty means t could hold one out of sight: an
-// interface, a container, or a struct with an embedded field.
+// which field or getter, promoted ones included. Empty means t could hold one
+// out of sight: an interface, a map (keyed by currency, perhaps), or a struct
+// that embeds an interface.
 func currencyIn(t types.Type) (fact.CurrencyPlace, string) {
-	if ptr, ok := types.Unalias(t).(*types.Pointer); ok {
-		t = ptr.Elem()
+	t = elemOf(t)
+	if t == nil {
+		return "", ""
 	}
-	name := "its struct type"
-	if n, ok := types.Unalias(t).(*types.Named); ok {
-		name = n.Obj().Name()
-		ms := types.NewMethodSet(types.NewPointer(n))
-		for i := 0; i < ms.Len(); i++ {
-			if m := ms.At(i).Obj(); naming.IsCurrencyName(m.Name()) {
-				return fact.CurrencyInType, name + "." + m.Name() + "()"
-			}
+	at := func(member string) string { return member }
+	if n := namedOf(t); n != nil {
+		at = func(member string) string { return n.Obj().Name() + "." + member }
+	}
+	recv := t
+	if !types.IsInterface(t) {
+		recv = types.NewPointer(t)
+	}
+	ms := types.NewMethodSet(recv)
+	for i := 0; i < ms.Len(); i++ {
+		m := ms.At(i).Obj()
+		// A getter holds a currency; WithCurrency(code) takes one in.
+		if sig, ok := m.Type().(*types.Signature); ok && naming.IsCurrencyName(m.Name()) && sig.Params().Len() == 0 && sig.Results().Len() > 0 {
+			return fact.CurrencyInType, at(m.Name() + "()")
 		}
 	}
 	switch u := t.Underlying().(type) {
 	case *types.Basic:
 		return fact.CurrencyMissing, ""
 	case *types.Struct:
-		embeds := false
-		for i := 0; i < u.NumFields(); i++ {
-			fld := u.Field(i)
-			if naming.IsCurrencyName(fld.Name()) {
-				return fact.CurrencyInType, name + "." + fld.Name()
-			}
-			embeds = embeds || fld.Embedded()
+		name, hidden := currencyField(u, map[*types.Struct]bool{})
+		if name != "" {
+			return fact.CurrencyInType, at(name)
 		}
-		if !embeds {
+		if !hidden {
 			return fact.CurrencyMissing, ""
 		}
 	}
 	return "", ""
+}
+
+// currencyField finds a currency field in s, its own or one promoted from an
+// embedded struct. hidden says an embedded interface could hold one instead.
+func currencyField(s *types.Struct, seen map[*types.Struct]bool) (name string, hidden bool) {
+	if seen[s] {
+		return "", false
+	}
+	seen[s] = true
+	for i := 0; i < s.NumFields(); i++ {
+		if fld := s.Field(i); naming.IsCurrencyName(fld.Name()) {
+			return fld.Name(), false
+		}
+	}
+	for i := 0; i < s.NumFields(); i++ {
+		fld := s.Field(i)
+		if !fld.Embedded() {
+			continue
+		}
+		switch u := elemOf(fld.Type()).Underlying().(type) {
+		case *types.Struct:
+			n, h := currencyField(u, seen)
+			if n != "" {
+				return n, false
+			}
+			hidden = hidden || h
+		case *types.Interface:
+			hidden = true
+		}
+	}
+	return "", hidden
+}
+
+// declType is the type a type spec declares, or nil if it did not check.
+func declType(pkg *packages.Package, spec *ast.TypeSpec) types.Type {
+	if obj, ok := pkg.TypesInfo.Defs[spec.Name].(*types.TypeName); ok {
+		return obj.Type()
+	}
+	return nil
 }
 
 func withoutGenerated[T any](items []T, gen map[string]bool, fileOf func(T) string) []T {
