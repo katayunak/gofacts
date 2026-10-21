@@ -431,12 +431,14 @@ type classification struct {
 	kinds      kindSet
 	injectable bool
 	iface      string
+	handedIn   string
 	guessed    bool
 }
 
 // classify decides whether a call leaves the process. An interface call is a
 // seam when the interface is the module's own or one of its implementations
-// is; a static call is a seam when it lands in a boundary library.
+// is; a static call is a seam when it lands in a boundary library, and
+// injectable when it is made on a *http.Client a test can hand in.
 func (p *Program) classify(c *ssa.CallCommon, callees []*ssa.Function) classification {
 	if c.IsInvoke() {
 		if isPlumbingIface(c.Value.Type()) {
@@ -473,6 +475,9 @@ func (p *Program) classify(c *ssa.CallCommon, callees []*ssa.Function) classific
 	kinds := p.effectKind(callee)
 	if kinds == 0 {
 		return classification{}
+	}
+	if via := clientHandedIn(c, callee); via != "" {
+		return classification{target: callee.String(), kinds: kinds, injectable: true, iface: roundTripper, handedIn: via}
 	}
 	return classification{target: callee.String(), kinds: kinds}
 }
@@ -616,7 +621,7 @@ func (p *Program) factsFor(fn *ssa.Function, ref fact.CodeRef) (fact.Facts, []fa
 					}
 					seams = append(seams, fact.Seam{
 						In: ref, Kind: k, Target: cl.target, Line: p.line(instr.Pos()),
-						Injectable: cl.injectable, Iface: cl.iface,
+						Injectable: cl.injectable, Iface: cl.iface, HandedIn: cl.handedIn,
 					})
 				}
 			}
