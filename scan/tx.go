@@ -17,6 +17,7 @@ import (
 // did not count at all, and a return between begin and commit was invisible.
 func (p *Program) transactions() []fact.Tx {
 	p.txLines = map[string]map[int]bool{}
+	p.txHelpers = map[*ssa.Function]*txHelper{}
 	ids := make([]string, 0, len(p.canon))
 	for id := range p.canon {
 		ids = append(ids, id)
@@ -46,8 +47,31 @@ func (p *Program) transactions() []fact.Tx {
 			}
 		})
 	}
+	for _, id := range ids {
+		ref := p.funcs[id].Ref
+		withClosures(p.canon[id], func(f *ssa.Function) {
+			for _, b := range f.Blocks {
+				for i, instr := range b.Instrs {
+					call, ok := instr.(*ssa.Call)
+					if !ok || call.Common().IsInvoke() {
+						continue
+					}
+					if h := p.txHelpers[call.Common().StaticCallee()]; h != nil {
+						out = append(out, p.helperTx(id, ref, f, b, i, call, h))
+					}
+				}
+			}
+		})
+	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Begin.Before(out[j].Begin) })
 	return out
+}
+
+// txHelper is a module function that begins a transaction and returns it as
+// result tx, leaving the commit or rollback to its caller.
+type txHelper struct {
+	tx    int
+	begin fact.Pos
 }
 
 func txCallee(c *ssa.CallCommon) (string, bool) {
@@ -185,36 +209,85 @@ type txScan struct {
 	// closures that end the transaction when called, and those deferred
 	enders   map[*ssa.Function]endKind
 	deferred map[*ssa.Function]bool
+	// the function the begin is in, the results it returns the transaction
+	// as, and whether the transaction escapes any other way
+	root      *ssa.Function
+	returned  map[int]bool
+	escapesBy bool
 }
 
 func (p *Program) beginTx(fnID string, ref fact.CodeRef, f *ssa.Function, b *ssa.BasicBlock, idx int, call *ssa.Call) fact.Tx {
 	tx := &fact.Tx{In: ref, Begin: p.pos(call.Pos()), Via: target(call.Common())}
-	txVal, errVal := splitResult(call)
+	txVal, errVal := splitResult(call, 0, 1)
+	s := p.scanTx(fnID, tx, f, b, idx, txVal, errVal)
+	if f.Parent() == nil {
+		p.noteHelper(f, s)
+	}
+	return *tx
+}
+
+// helperTx starts a transaction at a call to a begin helper: the caller is
+// where it commits or leaks, so the window is walked here.
+func (p *Program) helperTx(fnID string, ref fact.CodeRef, f *ssa.Function, b *ssa.BasicBlock, idx int, call *ssa.Call, h *txHelper) fact.Tx {
+	opened := h.begin
+	tx := &fact.Tx{In: ref, Begin: p.pos(call.Pos()), Via: target(call.Common()), OpenedAt: &opened}
+	txVal, errVal := splitResult(call, h.tx, errorResult(call.Common().Signature()))
+	p.scanTx(fnID, tx, f, b, idx, txVal, errVal)
+	return *tx
+}
+
+func (p *Program) scanTx(fnID string, tx *fact.Tx, f *ssa.Function, b *ssa.BasicBlock, idx int, txVal, errVal ssa.Value) *txScan {
 	s := &txScan{
 		p: p, fnID: fnID, tx: tx, a: newAliases(txVal), err: errVal, lines: map[int]bool{},
 		enders: map[*ssa.Function]endKind{}, deferred: map[*ssa.Function]bool{},
+		root: f, returned: map[int]bool{},
 	}
 	s.uses(f)
 	s.window(b, idx)
 	s.record()
-	return *tx
+	return s
 }
 
-func splitResult(call *ssa.Call) (txVal, errVal ssa.Value) {
+// noteHelper records f as a begin helper when the only way its transaction
+// leaves it is as one result, and f neither commits it nor begins another.
+func (p *Program) noteHelper(f *ssa.Function, s *txScan) {
+	if _, twice := p.txHelpers[f]; twice {
+		p.txHelpers[f] = nil
+		return
+	}
+	if !s.tx.Escapes || s.escapesBy || len(s.returned) != 1 || len(s.tx.Commits) > 0 {
+		return
+	}
+	for i := range s.returned {
+		p.txHelpers[f] = &txHelper{tx: i, begin: s.tx.Begin}
+	}
+}
+
+func splitResult(call *ssa.Call, txIdx, errIdx int) (txVal, errVal ssa.Value) {
 	if _, tuple := call.Type().(*types.Tuple); !tuple {
 		return call, nil
 	}
 	for _, r := range referrers(call) {
 		if ex, ok := r.(*ssa.Extract); ok {
 			switch ex.Index {
-			case 0:
+			case txIdx:
 				txVal = ex
-			case 1:
+			case errIdx:
 				errVal = ex
 			}
 		}
 	}
 	return txVal, errVal
+}
+
+func errorResult(sig *types.Signature) int {
+	errType := types.Universe.Lookup("error").Type()
+	for i := range sig.Results().Len() {
+		if types.Identical(sig.Results().At(i).Type(), errType) {
+			return i
+		}
+	}
+	return -1
 }
 
 // uses classifies every use of the transaction in the function and the
@@ -279,27 +352,35 @@ func (s *txScan) use(fn *ssa.Function, instr ssa.Instruction) {
 		for _, arg := range c.Args {
 			if s.a.tx[arg] {
 				s.tx.Used = true
-				s.tx.Escapes = s.tx.Escapes || s.mayEnd(c)
+				if s.mayEnd(c) {
+					s.escape()
+				}
 			}
 		}
 		if c.IsInvoke() && s.a.tx[c.Value] {
 			s.tx.Used = true
 		}
 	case *ssa.Return:
-		for _, r := range in.Results {
-			if s.a.tx[r] {
+		for i, r := range in.Results {
+			if !s.a.tx[r] {
+				continue
+			}
+			if fn == s.root {
 				s.tx.Escapes, s.tx.Used = true, true
+				s.returned[i] = true
+			} else {
+				s.escape()
 			}
 		}
 	case *ssa.Store:
 		if s.a.tx[in.Val] {
 			if _, local := in.Addr.(*ssa.Alloc); !local {
-				s.tx.Escapes, s.tx.Used = true, true
+				s.escape()
 			}
 		}
 	case *ssa.MakeInterface:
 		if s.a.tx[in.X] {
-			s.tx.Escapes, s.tx.Used = true, true
+			s.escape()
 		}
 	case *ssa.MakeClosure:
 		cf, _ := in.Fn.(*ssa.Function)
@@ -307,9 +388,13 @@ func (s *txScan) use(fn *ssa.Function, instr ssa.Instruction) {
 			return
 		}
 		if !calledDirectly(in) {
-			s.tx.Escapes, s.tx.Used = true, true
+			s.escape()
 		}
 	}
+}
+
+func (s *txScan) escape() {
+	s.tx.Escapes, s.tx.Used, s.escapesBy = true, true, true
 }
 
 func (s *txScan) derive(call *ssa.Call) {
