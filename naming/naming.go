@@ -59,20 +59,36 @@ func NewVocab(phrases ...string) Vocab {
 }
 
 func (v Vocab) Matches(name string) bool {
-	words := Words(name)
+	_, ok := v.find(Words(name))
+	return ok
+}
+
+// MatchesLast reports whether the name ends with one of the phrases, which is
+// how a type name says what kind of thing it is: PaymentStatus is a status,
+// StatusReport is a report.
+func (v Vocab) MatchesLast(name string) bool { return v.ends(Words(name)) }
+
+// find returns the words that make up the first phrase found in words, as
+// they are spelled there.
+func (v Vocab) find(words []string) (string, bool) {
 	for _, p := range v.phrases {
-		if containsRun(words, p) {
+		if i := indexRun(words, p); i >= 0 {
+			return strings.Join(words[i:i+len(p)], " "), true
+		}
+	}
+	return "", false
+}
+
+func (v Vocab) starts(words []string) bool {
+	for _, p := range v.phrases {
+		if len(p) <= len(words) && sameRun(words[:len(p)], p) {
 			return true
 		}
 	}
 	return false
 }
 
-// MatchesLast reports whether the name ends with one of the phrases, which is
-// how a type name says what kind of thing it is: PaymentStatus is a status,
-// StatusReport is a report.
-func (v Vocab) MatchesLast(name string) bool {
-	words := Words(name)
+func (v Vocab) ends(words []string) bool {
 	for _, p := range v.phrases {
 		if len(p) <= len(words) && sameRun(words[len(words)-len(p):], p) {
 			return true
@@ -81,13 +97,13 @@ func (v Vocab) MatchesLast(name string) bool {
 	return false
 }
 
-func containsRun(words, run []string) bool {
+func indexRun(words, run []string) int {
 	for i := 0; i+len(run) <= len(words); i++ {
 		if sameRun(words[i:i+len(run)], run) {
-			return true
+			return i
 		}
 	}
-	return false
+	return -1
 }
 
 func sameRun(words, run []string) bool {

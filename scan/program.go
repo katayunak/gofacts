@@ -174,6 +174,8 @@ func (p *Program) MoneyTypes() fact.Candidates      { return append(fact.Candida
 func (p *Program) HashChains() []fact.HashChain {
 	return append([]fact.HashChain(nil), p.hashChains...)
 }
+
+// Reconcilers are module-wide; Reached is left false here and set by Flow.
 func (p *Program) Reconcilers() []fact.Reconciler {
 	return append([]fact.Reconciler(nil), p.reconcilers...)
 }

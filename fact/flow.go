@@ -2,8 +2,8 @@ package fact
 
 // SchemaVersion of the Flow encoding. 5 adds transactions, load issues, edge
 // certainty and write provenance to testigo's version 4; every version 4 field
-// keeps its name and meaning.
-const SchemaVersion = 5
+// keeps its name and meaning. 6 adds reconcilers.
+const SchemaVersion = 6
 
 // Flow is the part of a program reachable from declared entry points: the view
 // testigo plans tests from and stores as flow.json.
@@ -21,7 +21,9 @@ type Flow struct {
 	TableWrites  []TableWrites `json:"table_writes,omitempty"`
 	HashChains   []HashChain   `json:"hash_chains,omitempty"`
 	Transactions []Tx          `json:"transactions,omitempty"`
-	Reconcilers  []Reconciler  `json:"reconcilers,omitempty"`
+	// Reconcilers is module-wide and always written: [] means none was
+	// found, a missing key means an older gofacts wrote the flow.
+	Reconcilers []Reconciler `json:"reconcilers"`
 
 	IdempotencyKeys Candidates        `json:"idempotency_keys,omitempty"`
 	MoneyTypes      Candidates        `json:"money_types,omitempty"`
@@ -69,12 +71,16 @@ type HashChain struct {
 }
 
 // Reconciler is a function named as a repair job: one that compares stored
-// state with another source and corrects it. It is found by name, so Basis is
-// Heuristic and Proof says which name matched.
+// state with another source and corrects it. Only names say so, so it is
+// always a guess: Proof lists the name that matched, then what the function
+// is seen to do. A flow lists every reconciler of the module, reached or not;
+// when Reached is false, Func is not a key in Nodes.
 type Reconciler struct {
-	Func  CodeRef `json:"func"`
-	Basis Basis   `json:"basis"`
-	Proof string  `json:"proof"`
+	Func  CodeRef  `json:"func"`
+	Proof []string `json:"proof"`
+	// Reached is set by Program.Flow: the entries reach Func. When false,
+	// Func is not a key in Nodes.
+	Reached bool `json:"reached"`
 }
 
 // Doc is markdown found in the repository. The analyser does not produce it;
