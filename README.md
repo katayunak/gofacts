@@ -83,7 +83,7 @@ The snippet is [`scan/example_test.go`](scan/example_test.go) and runs with the 
 | `Infra()` | the schema after all migrations, with `UniqueOn(table, column)` for uniqueness checks |
 | `TableWrites()` | how each table is written |
 | `Reconcilers()` | functions named as a repair job: the verb (`Reconcile`), recon or reconciliation with a job word (`RunRecon`), or a run method on a type named like one (`(*SettlementReconciler).Run`). Constructors, options, accessors (`NewReconciler`, `WithReconciler`, `GetReconciliation`), test and generated code, and helpers only other matches call are left out. Guessed from names, so `Proof` lists the name and what the body is seen to do. In `Flow` the list is module-wide; `reached` says whether the entries reach it |
-| `IdempotencyKeys()`, `MoneyTypes()` | scored candidates that show their evidence for and against |
+| `IdempotencyKeys()`, `MoneyTypes()` | scored candidates that show their evidence for and against; a money candidate also says where its currency is (`beside`, `in_type`, `missing`, or empty when not known) |
 | `Findings()` | every rule below, applied to the whole module |
 | `Flow(entries)` | the part reachable from declared entry points, in the shape testigo stores as `flow.json` |
 | `Issues()` | packages that did not load or type-check |
