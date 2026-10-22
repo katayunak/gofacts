@@ -119,7 +119,8 @@ func TestFunctionContainsItsLines(t *testing.T) {
 }
 
 // testigo reads flow.json written by older versions; every version 4 key
-// must keep its name.
+// must keep its name. reconcilers is always written too, so a missing key
+// means an older gofacts.
 func TestFlowKeepsTestigoVersion4Keys(t *testing.T) {
 	flow := NewFlow("example.com/m")
 	flow.Nodes["x#F"] = &Node{Ref: CodeRef{Pkg: "x", Symbol: "F"}, Position: NodePositionEntry}
@@ -133,7 +134,7 @@ func TestFlowKeepsTestigoVersion4Keys(t *testing.T) {
 	if err := json.Unmarshal(b, &top); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"schema_version", "module", "entries", "nodes", "seams", "states", "findings"} {
+	for _, key := range []string{"schema_version", "module", "entries", "nodes", "seams", "states", "findings", "reconcilers"} {
 		if _, ok := top[key]; !ok {
 			t.Errorf("flow.json lost key %q", key)
 		}

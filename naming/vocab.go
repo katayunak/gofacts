@@ -55,6 +55,26 @@ var idempotencyField = NewVocab(
 	"transfer id", "payment id",
 )
 
+// A reconciler is named by the verb, or by the noun beside a job word: the
+// noun alone also names its records and handlers (ReconciliationHandler,
+// ParseReconFile).
+var reconcileVerb = NewVocab("reconcile", "reconciling")
+
+var reconcileNoun = NewVocab("recon", "reconciliation")
+
+var jobWord = NewVocab("run", "job", "loop", "worker", "task", "sweep", "cron")
+
+var reconcilerType = NewVocab("reconciler")
+
+var runVerb = NewVocab("run", "start", "execute", "do", "process", "tick", "sweep")
+
+// notAJob are the first words of the code around a reconciler that is not
+// one: its constructor, options and accessors.
+var notAJob = NewVocab(
+	"new", "must", "make", "build", "provide", "with",
+	"get", "list", "find", "load", "save", "set", "parse", "is", "has",
+)
+
 var stateStrong = NewVocab(
 	"status", "state", "phase", "stage", "step", "lifecycle", "disposition",
 	"transition", "progress", "stat", "sts", "situation", "position",
@@ -96,6 +116,45 @@ func IsCounterName(name string) bool     { return counter.Matches(name) }
 func IsRateName(name string) bool        { return rate.Matches(name) }
 func IsContainerName(name string) bool   { return container.Matches(name) }
 func IsIdempotencyName(name string) bool { return idempotencyField.Matches(name) }
+
+// ReconcilerName returns the words that name a function as a repair job: the
+// verb (Reconcile, ReconcilingLoop), or recon or reconciliation with a job
+// word (RunSettlementRecon). It returns nothing when the first word makes the
+// function a constructor, option or accessor (NewReconciler, WithReconciler,
+// GetReconciliation).
+func ReconcilerName(name string) []string {
+	words := Words(name)
+	if len(words) == 0 || notAJob.starts(words) {
+		return nil
+	}
+	if verb, ok := reconcileVerb.find(words); ok {
+		return []string{verb}
+	}
+	noun, isNoun := reconcileNoun.find(words)
+	job, isJob := jobWord.find(words)
+	if isNoun && isJob {
+		return []string{noun, job}
+	}
+	return nil
+}
+
+func IsReconcilerName(name string) bool { return len(ReconcilerName(name)) > 0 }
+
+// IsReconcilerType: a type named like a repair job (SettlementReconciler,
+// ReconJob), whose run method is the job.
+func IsReconcilerType(name string) bool {
+	words := Words(name)
+	if reconcilerType.ends(words) {
+		return true
+	}
+	_, isNoun := reconcileNoun.find(words)
+	_, isVerb := reconcileVerb.find(words)
+	return (isNoun || isVerb) && jobWord.ends(words)
+}
+
+// IsRunMethod: a method name that starts with a run verb (Run, Start,
+// ProcessBatch).
+func IsRunMethod(name string) bool { return runVerb.starts(Words(name)) }
 
 // IsStateType: named like a lifecycle (PaymentStatus).
 func IsStateType(name string) bool { return stateStrong.MatchesLast(name) }

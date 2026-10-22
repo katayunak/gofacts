@@ -45,6 +45,10 @@ New, for the reviewer: `Functions`, `FunctionAt`, `Callers`, `Callees`,
 structural findings only for reachable nodes; `Flow` still does),
 `StateMachine.Transitions` and `StateRoles.Illegal`.
 
+New, for testigo's RECONCILER-IS-IDEMPOTENT: `Reconcilers` and
+`Flow.Reconcilers`, every function named as a repair job, with `reached`
+saying whether the flow's entries reach it.
+
 ## What stayed in testigo
 
 The test catalogue and scenarios, the agent rounds, prompts and planner, the
@@ -60,7 +64,7 @@ the mermaid flow renderer (`report/mermaid.go`) and the MCP server scaffolding.
 
 1. `go get github.com/katayunak/gofacts@latest`, then `go mod vendor`.
 2. `flowEntity.X` → `fact.X`. Every identifier testigo uses exists, `StateRole`
-   and `StateRoles` included. `fact.SchemaVersion` is 5; version 4 keys keep
+   and `StateRoles` included. `fact.SchemaVersion` is 6; version 4 keys keep
    their names.
 3. `scanningFlow.Scan(opts)` →
    `scan.Load(ctx, scan.Options{Dir: root, SkipDirs: []string{"testigo", "_to_delete"}})`,

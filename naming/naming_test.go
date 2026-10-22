@@ -124,3 +124,59 @@ func TestMoneyTypesAreReadFromTheLastWords(t *testing.T) {
 		}
 	}
 }
+
+func TestReconcilersAreNamedAsARepairJob(t *testing.T) {
+	for _, n := range []string{
+		"Reconcile", "ReconcilePayments", "Reconciles", "reconciling", "RunSettlementRecon",
+		"reconciliation_job", "RunReconciliationLoop", "ReconcilingLoop",
+	} {
+		if !IsReconcilerName(n) {
+			t.Errorf("%s should be a reconciler name", n)
+		}
+	}
+	for _, n := range []string{
+		"NewReconciler", "Record", "Reconnect", "Settle", "", "_",
+		"WithReconciler", "MustNewReconciler", "ProvideReconciler", "GetReconciliation",
+		"ListReconciliations", "SaveReconciliation", "ReconciliationHandler", "ParseReconFile",
+	} {
+		if IsReconcilerName(n) {
+			t.Errorf("%s is not a reconciler", n)
+		}
+	}
+}
+
+func TestReconcilerNameSaysWhichWordsMatched(t *testing.T) {
+	for name, want := range map[string][]string{
+		"ReconcilePayments":     {"reconcile"},
+		"Reconciles":            {"reconciles"},
+		"RunSettlementRecon":    {"recon", "run"},
+		"RunReconciliationLoop": {"reconciliation", "run"},
+	} {
+		if got := ReconcilerName(name); !slices.Equal(got, want) {
+			t.Errorf("%s: got %q, want %q", name, got, want)
+		}
+	}
+}
+
+func TestReconcilerTypesRunTheirJobFromARunMethod(t *testing.T) {
+	for _, n := range []string{"Reconciler", "SettlementReconciler", "ReconJob", "ReconciliationWorker", "ReconcileTask"} {
+		if !IsReconcilerType(n) {
+			t.Errorf("%s should be a reconciler type", n)
+		}
+	}
+	for _, n := range []string{"ReconcilerConfig", "Recon", "ReconciliationReport", "Job", "Settlement"} {
+		if IsReconcilerType(n) {
+			t.Errorf("%s is not a reconciler type", n)
+		}
+	}
+	for _, n := range []string{"Run", "RunOnce", "Start", "Execute", "Do", "Process", "ProcessBatch", "Tick", "Sweep"} {
+		if !IsRunMethod(n) {
+			t.Errorf("%s should be a run method", n)
+		}
+	}
+	for _, n := range []string{"Stop", "Done", "Runner", "Started", "Close", ""} {
+		if IsRunMethod(n) {
+			t.Errorf("%s is not a run method", n)
+		}
+	}
+}
