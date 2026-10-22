@@ -82,7 +82,7 @@ The snippet is [`scan/example_test.go`](scan/example_test.go) and runs with the 
 | `States()` | lifecycles with their states, every write site, source states from guards, whether the write is inside a transaction |
 | `Infra()` | the schema after all migrations, with `UniqueOn(table, column)` for uniqueness checks |
 | `TableWrites()` | how each table is written |
-| `IdempotencyKeys()`, `MoneyTypes()` | scored candidates that show their evidence for and against |
+| `IdempotencyKeys()`, `MoneyTypes()` | scored candidates that show their evidence for and against; a money candidate also says where its currency is (`beside`, `in_type`, `missing`, or empty when not known) |
 | `Findings()` | every rule below, applied to the whole module |
 | `Flow(entries)` | the part reachable from declared entry points, in the shape testigo stores as `flow.json` |
 | `Issues()` | packages that did not load or type-check |
