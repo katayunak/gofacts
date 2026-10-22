@@ -13,13 +13,19 @@ type Tx struct {
 	// supplies the callback.
 	Wrapper bool `json:"wrapper,omitempty"`
 
+	// OpenedAt is set when Begin is a call to a module function that begins
+	// the transaction and returns it: OpenedAt is the begin inside that
+	// function, and the window is judged here, where the transaction ends.
+	OpenedAt *Pos `json:"opened_at,omitempty"`
+
 	Commits          []Pos `json:"commits,omitempty"`
 	Rollbacks        []Pos `json:"rollbacks,omitempty"`
 	DeferredRollback bool  `json:"deferred_rollback,omitempty"`
 
 	// Escapes means the transaction value is returned, stored or handed to
-	// another function, so its end is decided somewhere this analysis does not
-	// follow. Leaks are not reported for an escaping transaction.
+	// another function, so its end is decided somewhere else. Leaks are not
+	// reported for an escaping transaction. When a module function only returns
+	// it, each static call to that function is its own Tx, with OpenedAt set.
 	Escapes bool `json:"escapes,omitempty"`
 
 	// Leaks are returns reachable from the begin with neither a commit, a

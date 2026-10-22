@@ -263,6 +263,66 @@ func (s *S) Lent(ctx context.Context) error {
 	return tx.Commit()
 }
 `,
+			"svc/helper.go": `package svc
+
+import (
+	"context"
+	"database/sql"
+)
+
+func (s *S) begin(ctx context.Context) (*sql.Tx, error) {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func (s *S) HelperLeak(ctx context.Context) error {
+	tx, err := s.begin(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, "update payments set status = 'paid' where id = $1", 1); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *S) HelperDeferred(ctx context.Context) error {
+	tx, err := s.begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, "update payments set status = 'paid' where id = $1", 1); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+type K struct {
+	DB   *sql.DB
+	last *sql.Tx
+}
+
+func (k *K) beginKept(ctx context.Context) (*sql.Tx, error) {
+	tx, err := k.DB.BeginTx(ctx, nil)
+	k.last = tx
+	return tx, err
+}
+
+func (k *K) HelperKept(ctx context.Context) error {
+	tx, err := k.beginKept(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, "delete from holds where id = $1", 1); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+`,
 			"orm/orm.go": `package orm
 
 import "gorm.io/gorm"
@@ -344,6 +404,43 @@ func TestATransactionLentToAHelperIsStillOwnedHere(t *testing.T) {
 	}
 	if _, ok := findingIn(p.Findings(), "TX-BYPASS", "(*S).Lent"); ok {
 		t.Error("the helper is handed the transaction, so its insert is inside it")
+	}
+}
+
+func TestATransactionBegunInAHelperIsJudgedInTheCaller(t *testing.T) {
+	p := txLab(t)
+	if helper := txIn(p.Transactions(), "(*S).begin"); helper == nil || !helper.Escapes || len(helper.Leaks) != 0 {
+		t.Fatalf("begin returns the transaction, so its end is the caller's: %+v", helper)
+	}
+	tx := txIn(p.Transactions(), "(*S).HelperLeak")
+	if tx == nil {
+		t.Fatal("the transaction begun by s.begin and committed in HelperLeak was not followed into HelperLeak")
+	}
+	if tx.Begin.Line != 17 || tx.OpenedAt == nil || tx.OpenedAt.Line != 9 || tx.Escapes || !tx.Used {
+		t.Errorf("tx = %+v", tx)
+	}
+	if len(tx.Leaks) != 1 || tx.Leaks[0].Line != 22 {
+		t.Fatalf("leaks = %+v; want only the return after the failed exec, not the one after the helper failed", tx.Leaks)
+	}
+	if f, ok := findingIn(p.Findings(), "TX-NO-ROLLBACK", "(*S).HelperLeak"); !ok || f.Line != 22 {
+		t.Errorf("finding = %+v", f)
+	}
+}
+
+func TestADeferredRollbackCoversATransactionBegunInAHelper(t *testing.T) {
+	p := txLab(t)
+	tx := txIn(p.Transactions(), "(*S).HelperDeferred")
+	if tx == nil || !tx.DeferredRollback || len(tx.Leaks) != 0 {
+		t.Fatalf("tx = %+v", tx)
+	}
+	if f, ok := findingIn(p.Findings(), "TX-NO-ROLLBACK", "(*S).HelperDeferred"); ok {
+		t.Errorf("rollback is deferred: %+v", f)
+	}
+}
+
+func TestAHelperThatAlsoKeepsTheTransactionIsNotFollowed(t *testing.T) {
+	if tx := txIn(txLab(t).Transactions(), "(*K).HelperKept"); tx != nil {
+		t.Fatalf("beginKept stores the transaction in a field too, so the caller may not be the only one to end it: %+v", tx)
 	}
 }
 

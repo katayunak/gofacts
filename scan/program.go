@@ -79,6 +79,7 @@ type Program struct {
 	seams       []fact.Seam
 	txs         []fact.Tx
 	txLines     map[string]map[int]bool
+	txHelpers   map[*ssa.Function]*txHelper
 	states      []fact.StateMachine
 	infra       fact.Infra
 	sql         []sqlSite

@@ -190,8 +190,11 @@ Paths in model output are treated as input: `cite` refuses absolute paths,
   DDL in Go outside a migration package (a test reset, a teardown) is ignored
   when the module has migrations, and only adds when it has none.
 - cgo files are not analysed.
-- A transaction is followed within one function. One begun in a function and
-  committed in another is reported as escaping, and its leaks are not judged.
+- A transaction is followed within one function, with one exception: a module
+  function that begins it and only returns it hands it to each caller, and the
+  window is judged in the caller (`Tx.OpenedAt` is the begin inside the helper).
+  Any other transaction begun in one function and ended in another is reported
+  as escaping, and its leaks are not judged.
 
 ## Development
 
