@@ -37,6 +37,7 @@ or in the package's own tests.
 | methods of generic types missing | indexed | `TestSymbolNaming` |
 | goroutine hand-off only a per-function flag | marked on the edge | `TestGoroutineHandOffIsMarkedOnTheEdge` |
 | answers' citations checked by regex `\.go:\d+` | `cite.Verifier`: path containment, line exists, quote matches | `cite/cite_test.go` |
+| every call on a `*http.Client` was a concrete seam, so `SEAM-CONCRETE` said no test could fail it even when the client was a field or a parameter | a client a test can hand in is injectable through `net/http.RoundTripper`, and `Seam.HandedIn` names the parameter or field; `http.DefaultClient`, package variables and clients built in the function stay concrete | `TestAClientHandedInIsFakedThroughItsTransport`, `TestAClientNoTestCanReplaceIsConcrete` |
 | `go build/vet/test` on the repo with no deadline, inherited env, unbounded output | `gocmd` | `gocmd/gocmd_test.go` |
 | `flow.json` carried a timestamp, so two scans differed | deterministic; `GeneratedAt` is the caller's to set | `TestOutputIsDeterministic` |
 
@@ -78,5 +79,6 @@ Expect different output, deliberately: more nodes behind consumer-defined
 interfaces but fewer overall (no `func()` fan-out), fewer `TX-NET-CALL` false
 positives, new `TX-UNUSED` and `TX-BYPASS` findings, table writes that used to
 be missing, no `MIGRATION-NO-DOWN` for `Register` calls that are not
-migrations, and no `IDEM-KEY-NOT-UNIQUE` for fields the table does not store
+migrations, injectable seams and no `SEAM-CONCRETE` where a `*http.Client`
+is handed in, and no `IDEM-KEY-NOT-UNIQUE` for fields the table does not store
 (paysvc's `OrderID`).

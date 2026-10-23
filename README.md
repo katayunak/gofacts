@@ -77,7 +77,7 @@ The snippet is [`scan/example_test.go`](scan/example_test.go) and runs with the 
 | `FunctionAt(file, line)` | the function a line belongs to — how a diff hunk maps to code |
 | `Callers(id)`, `Callees(id)`, `Edges()` | resolved call edges, each with `Certainty`, and whether it is a `go` or `defer` hand-off |
 | `TestsFor(id, maxHops)` | the tests that reach a function, nearest first (load with `Options{Tests: true}`) |
-| `Seams()` | calls that leave the process, and whether they are injectable |
+| `Seams()` | calls that leave the process, and whether they are injectable: through an interface the module defines, or a `*http.Client` a test can hand in (`HandedIn` says where) |
 | `Transactions()` | each transaction: begin, commits, rollbacks, leaking returns, what runs while it is open |
 | `States()` | lifecycles with their states, every write site, source states from guards, whether the write is inside a transaction |
 | `Infra()` | the schema after all migrations, with `UniqueOn(table, column)` for uniqueness checks |
@@ -98,7 +98,7 @@ Function IDs look like `example.com/paysvc/api#(*Server).process`.
 | `TX-NO-ROLLBACK` | high | proved | a return between begin and commit reaches neither commit nor rollback, and nothing is deferred |
 | `TX-UNUSED` | high | proved | a transaction is opened and committed but no statement runs on it, so nothing it was meant to protect is atomic |
 | `TX-BYPASS` | high / medium | proved / heuristic | database work runs beside the open transaction instead of in it |
-| `SEAM-CONCRETE` | high | proved | I/O called on a concrete type, so a test cannot make it fail or time out |
+| `SEAM-CONCRETE` | high | proved | I/O called on a concrete type no test can replace, so a test cannot make it fail or time out. A `*http.Client` that is a parameter, or a field of a value passed in, is not concrete: its Transport is the seam |
 | `IDEM-KEY-NOT-UNIQUE` | critical | heuristic | the idempotency key's column has no unique constraint, so two concurrent requests both pass the "seen it?" check |
 | `MONEY-FLOAT` | critical | heuristic | money stored, accepted, returned or converted as a float |
 | `MONEY-DIV` | high | heuristic | integer money divided with no stated rounding rule |
@@ -189,6 +189,11 @@ Paths in model output are treated as input: `cite` refuses absolute paths,
 - Go migrations run in the order of the number their file names start with.
   DDL in Go outside a migration package (a test reset, a teardown) is ignored
   when the module has migrations, and only adds when it has none.
+- Of the concrete clients, only `*http.Client` can be injectable, and only when
+  it is a parameter, a field of a value passed in, or built in the function on a
+  Transport that is. A client returned by a call (a constructor, a getter) counts
+  as concrete. So do package variables, `http.DefaultClient` included: swapping
+  one changes state every test shares.
 - cgo files are not analysed.
 - A transaction is followed within one function. One begun in a function and
   committed in another is reported as escaping, and its leaks are not judged.

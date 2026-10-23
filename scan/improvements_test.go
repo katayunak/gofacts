@@ -119,6 +119,133 @@ func TestGoroutineHandOffIsMarkedOnTheEdge(t *testing.T) {
 	t.Fatal("PSPCallback -> capture edge missing")
 }
 
+const httpClients = `package psp
+
+import (
+	"context"
+	"net/http"
+	"strings"
+	"time"
+)
+
+var shared = &http.Client{Timeout: 5 * time.Second}
+
+type Deps struct{ Client *http.Client }
+
+type Gateway struct {
+	http *http.Client
+	rt   http.RoundTripper
+	deps Deps
+}
+
+type Embedded struct{ http.Client }
+
+func req(ctx context.Context) *http.Request {
+	r, _ := http.NewRequestWithContext(ctx, http.MethodPost, "http://psp/authorize", strings.NewReader("x"))
+	return r
+}
+
+func (g *Gateway) FromField(ctx context.Context) error    { _, err := g.http.Do(req(ctx)); return err }
+func FromParam(ctx context.Context, c *http.Client) error { _, err := c.Do(req(ctx)); return err }
+func (g *Gateway) Nested(ctx context.Context) error       { _, err := g.deps.Client.Do(req(ctx)); return err }
+func (e *Embedded) Promoted(ctx context.Context) error    { _, err := e.Do(req(ctx)); return err }
+
+func (g *Gateway) DefaultWhenNil(ctx context.Context) error {
+	c := g.http
+	if c == nil {
+		c = http.DefaultClient
+	}
+	_, err := c.Do(req(ctx))
+	return err
+}
+
+func (g *Gateway) BuiltOnItsTransport(ctx context.Context) error {
+	c := &http.Client{Transport: g.rt, Timeout: time.Second}
+	_, err := c.Do(req(ctx))
+	return err
+}
+
+func (g *Gateway) InClosure(ctx context.Context) error {
+	var err error
+	do := func() { _, err = g.http.Do(req(ctx)) }
+	do()
+	return err
+}
+
+func Default(ctx context.Context) error    { _, err := http.DefaultClient.Do(req(ctx)); return err }
+func PackageVar(ctx context.Context) error { _, err := shared.Do(req(ctx)); return err }
+func PackageGet() error                    { _, err := http.Get("http://psp/ping"); return err }
+
+func Built(ctx context.Context) error {
+	c := &http.Client{Timeout: time.Second}
+	_, err := c.Do(req(ctx))
+	return err
+}
+
+func BuiltWithItsOwnTransport(ctx context.Context) error {
+	c := &http.Client{Transport: &http.Transport{MaxIdleConns: 1}}
+	_, err := c.Do(req(ctx))
+	return err
+}
+
+func withClient(f func(*http.Client) error) error { return f(&http.Client{}) }
+
+func ClosureParam(ctx context.Context) error {
+	return withClient(func(c *http.Client) error { _, err := c.Do(req(ctx)); return err })
+}
+`
+
+func clientLab(t *testing.T) *Program {
+	return lab(t, "client", func() map[string]string {
+		return map[string]string{"psp/psp.go": httpClients}
+	})
+}
+
+func httpSeamIn(t *testing.T, p *Program, symbol string) fact.Seam {
+	t.Helper()
+	for _, s := range p.Seams() {
+		if s.In.Symbol == symbol && s.Kind == fact.SeamHTTP {
+			return s
+		}
+	}
+	t.Fatalf("no http seam in %s", symbol)
+	return fact.Seam{}
+}
+
+func TestAClientHandedInIsFakedThroughItsTransport(t *testing.T) {
+	p := clientLab(t)
+	for symbol, via := range map[string]string{
+		"(*Gateway).FromField":           "field example.com/m/psp.Gateway.http",
+		"FromParam":                      "parameter c",
+		"(*Gateway).Nested":              "field example.com/m/psp.Deps.Client",
+		"(*Embedded).Promoted":           "field example.com/m/psp.Embedded.Client",
+		"(*Gateway).DefaultWhenNil":      "field example.com/m/psp.Gateway.http",
+		"(*Gateway).BuiltOnItsTransport": "field example.com/m/psp.Gateway.rt",
+		"(*Gateway).InClosure":           "field example.com/m/psp.Gateway.http",
+	} {
+		s := httpSeamIn(t, p, symbol)
+		if !s.Injectable || s.Iface != "net/http.RoundTripper" || s.HandedIn != via {
+			t.Errorf("%s: injectable=%v iface=%q handed_in=%q, want true, net/http.RoundTripper, %q — a test can hand this call its own client with a fake Transport, yet every *http.Client call was a concrete seam", symbol, s.Injectable, s.Iface, s.HandedIn, via)
+		}
+		if _, ok := findingIn(p.Findings(), "SEAM-CONCRETE", symbol); ok {
+			t.Errorf("%s: SEAM-CONCRETE says faults cannot be injected, but the client is handed in", symbol)
+		}
+	}
+}
+
+func TestAClientNoTestCanReplaceIsConcrete(t *testing.T) {
+	p := clientLab(t)
+	for _, symbol := range []string{"Default", "PackageVar", "PackageGet", "Built", "BuiltWithItsOwnTransport", "ClosureParam"} {
+		s := httpSeamIn(t, p, symbol)
+		if s.Injectable || s.Iface != "" || s.HandedIn != "" {
+			t.Errorf("%s: injectable=%v iface=%q handed_in=%q — this client is a global, built here, or chosen by module code; a test cannot hand in its own without changing shared state", symbol, s.Injectable, s.Iface, s.HandedIn)
+		}
+		if _, ok := findingIn(p.Findings(), "SEAM-CONCRETE", symbol); !ok {
+			t.Errorf("%s: SEAM-CONCRETE missing", symbol)
+		}
+	}
+}
+
 // txLab holds one transaction scenario per file, so line numbers in the tests
 // are the scenario file's own.
 func txLab(t *testing.T) *Program {
